@@ -1,0 +1,11 @@
+{
+	"title"		:	"JetPack 2.0",
+	"type"		:	"weapon",
+	"tags"		:	[ "roleplay", "realism" ],
+	"ignore"	:
+	[
+		"*.psd",
+		"*.vcproj",
+		"*.svn*"
+	]
+}
