@@ -75,122 +75,120 @@ function PowerPercent(fuelRemaning)
   return perc * (GetConVarNumber("jetpack_increase_maximum") - GetConVarNumber("jetpack_increase_minimum")) + GetConVarNumber("jetpack_increase_minimum")
 end
 
--- Code to replace Think Code
-function SWEP:Think()
-  if SERVER then
-    --Thinking time for velocity
-    if not self.LastThink then
-      self.LastThink = CurTime()
-    end
-    local Dti = 0 --This would be 1 if thinking was exactly on time. When thinking gets slower, this gets larger, so we should apply the same force every time
-    if CurTime()>=self.LastThink+self.ThinkRate then
-      local Dt = CurTime()-self.LastThink
-      Dti = Dt/self.ThinkRate
-      self.LastThink = CurTime()
-    end
-    for i, ply in ipairs(player.GetAll()) do
-      ply:LagCompensation( false )
-      if ply:GetNWBool("JetEnabled") then
-        --Make our sound
-        if not self.Owner.Sound then
-          self.Owner.Sound = CreateSound(self, "PhysicsCannister.ThrusterLoop")
-          self.Owner.Sound:Play()
-          self.Owner.Sound:ChangeVolume(0,0)
-        end
-		
-        if not self.Owner.Sound2 then
-          self.Owner.Sound2 = CreateSound(self, "WT_RocketBoots.Thrust")
-          self.Owner.Sound2:Play()
-          self.Owner.Sound2:ChangeVolume(0,0)
-        end
-		
-		if not self.Owner.Sound.isPlaying() then
-			self.Owner.Sound:Play()
-			self.Owner.Sound:ChangeVolume(0,0)
+if SERVER then
+	local function JetPacking()
+		--Thinking time for velocity
+		if not self.LastThink then
+		  self.LastThink = CurTime()
 		end
-		
-		if not self.Owner.Sound2.isPlaying() then
-			self.Owner.Sound2:Play()
-			self.Owner.Sound2:ChangeVolume(0,0)
+		local Dti = 0 --This would be 1 if thinking was exactly on time. When thinking gets slower, this gets larger, so we should apply the same force every time
+		if CurTime()>=self.LastThink+self.ThinkRate then
+		  local Dt = CurTime()-self.LastThink
+		  Dti = Dt/self.ThinkRate
+		  self.LastThink = CurTime()
 		end
+		for i, ply in ipairs(player.GetAll()) do
+		  ply:LagCompensation( false )
+		  if ply:GetNWBool("JetEnabled") then
+			--Make our sound
+			if not self.Owner.Sound then
+			  ply.Sound = CreateSound(self, "PhysicsCannister.ThrusterLoop")
+			  ply.Sound:Play()
+			  ply.Sound:ChangeVolume(0,0)
+			end
+			
+			if not ply.Sound2 then
+			  ply.Sound2 = CreateSound(self, "WT_RocketBoots.Thrust")
+			  ply.Sound2:Play()
+			  ply.Sound2:ChangeVolume(0,0)
+			end
+			
+			if not ply.Sound.isPlaying() then
+				ply.Sound:Play()
+				ply.Sound:ChangeVolume(0,0)
+			end
+			
+			if not ply.Sound2.isPlaying() then
+				ply.Sound2:Play()
+				ply.Sound2:ChangeVolume(0,0)
+			end
 
-        --Default for when its not set yet
-        if ply:GetNWBool("Boosting") == nil then
-          ply:SetNWBool("Boosting", false)
-          self.Owner.Sound:ChangeVolume(0,0)
-          self.Owner.Sound2:ChangeVolume(0,0)
-        end
+			--Default for when its not set yet
+			if ply:GetNWBool("Boosting") == nil then
+			  ply:SetNWBool("Boosting", false)
+			  ply.Sound:ChangeVolume(0,0)
+			  ply.Sound2:ChangeVolume(0,0)
+			end
 
-        --Are we starting or stopping boosting
-        if not ply:GetNWBool("Boosting") then
-          if (not ply:IsOnGround()) and ply:KeyDown(IN_JUMP) then
-            ply.lastBoost = -1
-            ply:SetNWBool("Boosting", true)
-            self.Owner.Sound:ChangeVolume(1,0.25)
-            self.Owner.Sound2:ChangeVolume(0.8,0.25)
-            self:AddBoostEffect(ply, true)
-            self.NextBoostEffect = CurTime()+0.95
-          end
-        else
-          --we were boosting, are still boosting?
-          if (not ply:KeyDown(IN_JUMP)) or ply:IsOnGround() then
-            ply.lastBoost = os.clock()
-          ply:SetNWBool("Boosting", false)
-            self.Owner.Sound:ChangeVolume(0,0.25)
-            self.Owner.Sound2:ChangeVolume(0,0.25)
-          end
-        end
+			--Are we starting or stopping boosting
+			if not ply:GetNWBool("Boosting") then
+			  if (not ply:IsOnGround()) and ply:KeyDown(IN_JUMP) then
+				ply.lastBoost = -1
+				ply:SetNWBool("Boosting", true)
+				ply.Sound:ChangeVolume(1,0.25)
+				ply.Sound2:ChangeVolume(0.8,0.25)
+				SWEP:AddBoostEffect(ply, true)
+				SWEP.NextBoostEffect = CurTime()+0.95
+			  end
+			else
+			  --we were boosting, are still boosting?
+			  if (not ply:KeyDown(IN_JUMP)) or ply:IsOnGround() then
+				ply.lastBoost = os.clock()
+				ply:SetNWBool("Boosting", false)
+				ply.Sound:ChangeVolume(0,0.25)
+				ply.Sound2:ChangeVolume(0,0.25)
+			  end
+			end
 
-        --We are flying
-        if ply:GetNWBool("Boosting") then
-          if (ply:GetAmmoCount("AirboatGun") > GetConVarNumber("jetpack_drain_fuel") and ply:KeyDown(IN_JUMP)) then
-            ply:RemoveAmmo(GetConVarNumber("jetpack_drain_fuel"), "AirboatGun")
-            ply:SetAllowFullRotation(false)
-            --Only apply velocity if we are past our thinking time (dti is zero until we hit our think above)
-            if Dti > 0 then
-              local vertical = Vector(0, 0, 1)
-              local horizontal = Vector(0, 0, 0)
-              vertical = PowerPercent(ply:GetAmmoCount("AirboatGun")) * vertical * GetConVarNumber("jetpack_force") * Dti
-              if (vertical:Length() < GetConVarNumber("jetpack_force_maximum")) then
-                vertical = vertical:GetNormalized() * GetConVarNumber("jetpack_force_maximum")
-              end
-              if ply:KeyDown(IN_FORWARD) then
-                horizontal = horizontal + ply:GetForward()
-              end
-              if ply:KeyDown(IN_BACK) then
-                horizontal = horizontal + -ply:GetForward()
-              end
-              if ply:KeyDown(IN_MOVERIGHT) then
-                horizontal = horizontal + ply:GetRight()
-              end
-              if ply:KeyDown(IN_MOVELEFT) then
-                horizontal = horizontal + -ply:GetRight()
-              end
-              horizontal = horizontal * GetConVarNumber("jetpack_strafe_force") * Dti
-              ply:SetVelocity(vertical + horizontal)
-            end
-            self:AddBoostEffect(ply)
-          end
-        else
-          -- Refresh ammo code - Will actiavte after a certain amount of time has passed.
-          if (ply.lastBoost ~= -1 && os.clock() - ply.lastBoost >= GetConVarNumber("jetpack_recharge_reset")) then
-            ply:SetAllowFullRotation(false)
-            if (ply:GetAmmoCount("AirboatGun") < GetConVarNumber("jetpack_max_fuel")) then
-              if (ply:GetAmmoCount("AirboatGun") + GetConVarNumber("jetpack_recharge_rate") > GetConVarNumber("jetpack_max_fuel")) then
-                ply:SetAmmo(GetConVarNumber("jetpack_max_fuel"), "AirboatGun", true)
-              else
-                ply:GiveAmmo(GetConVarNumber("jetpack_recharge_rate"), "AirboatGun", true)
-              end
-            end
-          end
-        end
-        ply:LagCompensation( false )
-      end
-    end
-  end
+			--We are flying
+			if ply:GetNWBool("Boosting") then
+			  if (ply:GetAmmoCount("AirboatGun") > GetConVarNumber("jetpack_drain_fuel") and ply:KeyDown(IN_JUMP)) then
+				ply:RemoveAmmo(GetConVarNumber("jetpack_drain_fuel"), "AirboatGun")
+				ply:SetAllowFullRotation(false)
+				--Only apply velocity if we are past our thinking time (dti is zero until we hit our think above)
+				if Dti > 0 then
+				  local vertical = Vector(0, 0, 1)
+				  local horizontal = Vector(0, 0, 0)
+				  vertical = PowerPercent(ply:GetAmmoCount("AirboatGun")) * vertical * GetConVarNumber("jetpack_force") * Dti
+				  if (vertical:Length() < GetConVarNumber("jetpack_force_maximum")) then
+					vertical = vertical:GetNormalized() * GetConVarNumber("jetpack_force_maximum")
+				  end
+				  if ply:KeyDown(IN_FORWARD) then
+					horizontal = horizontal + ply:GetForward()
+				  end
+				  if ply:KeyDown(IN_BACK) then
+					horizontal = horizontal + -ply:GetForward()
+				  end
+				  if ply:KeyDown(IN_MOVERIGHT) then
+					horizontal = horizontal + ply:GetRight()
+				  end
+				  if ply:KeyDown(IN_MOVELEFT) then
+					horizontal = horizontal + -ply:GetRight()
+				  end
+				  horizontal = horizontal * GetConVarNumber("jetpack_strafe_force") * Dti
+				  ply:SetVelocity(vertical + horizontal)
+				end
+				self:AddBoostEffect(ply)
+			  end
+			else
+			  -- Refresh ammo code - Will actiavte after a certain amount of time has passed.
+			  if (ply.lastBoost ~= -1 && os.clock() - ply.lastBoost >= GetConVarNumber("jetpack_recharge_reset")) then
+				ply:SetAllowFullRotation(false)
+				if (ply:GetAmmoCount("AirboatGun") < GetConVarNumber("jetpack_max_fuel")) then
+				  if (ply:GetAmmoCount("AirboatGun") + GetConVarNumber("jetpack_recharge_rate") > GetConVarNumber("jetpack_max_fuel")) then
+					ply:SetAmmo(GetConVarNumber("jetpack_max_fuel"), "AirboatGun", true)
+				  else
+					ply:GiveAmmo(GetConVarNumber("jetpack_recharge_rate"), "AirboatGun", true)
+				  end
+				end
+			  end
+			end
+			ply:LagCompensation( false )
+		  end
+		end
+	end
+	hook.Add("Think","Jetpush",JetPacking)
 end
-
-
 
 local function PlayerDied(ply)
     local JetIsOn = ply:GetNWBool("JetEnabled")
